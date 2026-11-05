@@ -1,0 +1,104 @@
+# TP Audio Agent configuration.
+# Copied to %LOCALAPPDATA%\TPAudioAgent\config.toml on first install.
+# Edits are picked up live (hot reload); an invalid edit is rejected and the
+# previous config stays in force — check GET /health -> config.error.
+
+[agent]
+host = "127.0.0.1"                 # never bind anything else; the agent is desk-local only
+port = 8765
+# Browser origins allowed to call the agent (the TP UI). Anything else gets 403.
+allowed_origins = [
+  "https://tp.percev.com",
+  "http://localhost:5173",
+]
+# Optional shared token; if set, the TP UI must send header X-Agent-Token.
+token = ""
+log_level = "INFO"
+# Transcripts are NOT written to log files unless this is true (pending counsel ruling).
+log_transcripts = false
+
+[buffer]
+seconds = 90                       # ring-buffer depth per role; replay can never exceed this
+
+# ---- Capture sources ------------------------------------------------------
+# Each source feeds one role. Downstream (buffer, replay, ASR) is keyed on role,
+# so swapping which mic is "broker" is a one-line change here.
+# type: wasapi | wasapi_loopback | file | rtp
+# device: case-insensitive substring of the Windows device name (indices change on re-plug).
+
+[[source]]
+name = "headset_mic"
+role = "broker"                    # headset mic hears the broker (if the pickup test passes)
+type = "wasapi"
+device = "Headset Microphone"
+enabled = true
+
+[[source]]
+name = "headset_out"
+role = "far_end"                   # risk manager, captured from the headset output
+type = "wasapi_loopback"
+device = "Headset Earphone"
+enabled = false                    # off by default: loopback also captures our own replays
+
+# [[source]]
+# name = "outward_mic"
+# role = "broker"
+# type = "wasapi"
+# device = "USB Microphone"
+# enabled = false
+
+# [[source]]
+# name = "siprec_fork"
+# role = "far_end"
+# type = "rtp"
+# listen = "127.0.0.1:40000"       # forked RTP (PCMU or L16); SIP signalling is out of scope
+# enabled = false
+
+[replay]
+output_device = "Headset Earphone"
+default_seconds = 30
+options = [30, 60]
+default_roles = ["broker"]
+gain = 1.0
+
+[segmenter]
+role = "broker"                    # role whose speech is cut into orders
+trader_role = ""                   # if a separate trader channel exists, its speech ends a segment
+min_speech_ms = 300
+end_silence_ms = 700
+max_segment_s = 15
+threshold_db_above_floor = 10
+suppress_during_replay = true      # don't transcribe our own replay if it leaks into the mic
+
+[asr]
+backend = "faster_whisper"         # faster_whisper | none
+model = "medium.en"
+device = "cpu"
+compute_type = "int8"
+beam_size = 5
+# Extra words to bias the recogniser (tickers are added automatically from [symbols]).
+vocabulary = ["call spread", "put spread", "straddle", "strangle", "butterfly", "fly",
+              "iron condor", "risky", "risk reversal", "jelly roll", "box", "conversion",
+              "reversal", "calendar", "up", "bid", "offer", "paying", "selling", "buying"]
+
+[extract]
+backend = "rules"                  # rules | anthropic (anthropic sends transcript TEXT to the cloud)
+min_field_conf = 0.6               # below this a field is left blank, never guessed
+proposal_ttl_s = 120               # proposals and their transcripts live in memory only
+anthropic_model = "claude-haiku-5-5"
+
+[symbols]
+# Spoken name -> ticker. Spoken ticker letters ("A A P L") are matched separately.
+[symbols.aliases]
+apple = "AAPL"
+amazon = "AMZN"
+amd = "AMD"
+intel = "INTC"
+nvidia = "NVDA"
+tesla = "TSLA"
+spiders = "SPY"
+spy = "SPY"
+qs = "QQQ"
+cubes = "QQQ"
+exxon = "XOM"
+sandisk = "SNDK"

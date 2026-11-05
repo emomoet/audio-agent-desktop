@@ -1,0 +1,18 @@
+[project]
+name = "tp-audio-agent"
+version = "0.1.0"
+description = "Desk-side audio capture, last-N-seconds replay and spoken-order proposals for TP"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "sounddevice>=0.4.6",     # WASAPI capture + playback (PortAudio)
+]
+
+[project.optional-dependencies]
+loopback = ["soundcard>=0.4.3"]          # only for wasapi_loopback sources
+asr = ["faster-whisper>=1.0"]            # local speech-to-text
+build = ["pyinstaller>=6.6"]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

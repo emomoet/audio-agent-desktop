@@ -1,0 +1,3 @@
+{"ticker": "AAPL", "expiries": [{"month": 5}], "strikes": [180, 190], "cp": "c", "spread_type": "cs", "broker_side": "b", "broker_qty": 500, "price": 2.1}
+{"ticker": "AMD", "expiries": [{"month": 6}], "strikes": [150], "spread_type": "st", "broker_side": "two_sided", "broker_qty": 200}
+{"ticker": "SPY", "expiries": [{"month": 5, "day": 15}], "strikes": [590, 595, 600], "cp": "c", "spread_type": "cbf", "broker_side": "b", "broker_qty": 1000, "price": 1.25}
