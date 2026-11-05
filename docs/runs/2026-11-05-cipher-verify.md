@@ -90,8 +90,20 @@ resume from this file alone.
 Year on every row: the emitter writes a single char; in Nov 2026 that is the 2026 occurrence,
 which for May/Jun/Jul/Jan has passed — a FAIL on year once the verifier checks it.
 
+## Step 2 — `tools/verify_ciphers.py` (done)
+
+- Run: `cd <trading-system-v2> && python <audio-agent-desktop>/tools/verify_ciphers.py` (or pass the
+  TP path as argv[1]). Puts `<tp>/backend` and the agent root on `sys.path`, calls
+  `order_parser.parse_order(cipher, today.year)` for the legacy cipher (BEFORE) and for what
+  `build_cipher` emits from the same meaning (AFTER); checks symbol, legs (month, year, day, strike,
+  cp, ratio — derived from the STRUCTURE, not the parser), spread type, size, price, side, no
+  errors, priceable. Expected year = nearest occurrence of the spoken month (this month = this year).
+- Result at `144666e` (emitter unchanged): **BEFORE 0/11, AFTER 0/11.** The cbf case parsed
+  cleanly but as May 2026 (single `y` in Nov 2026) — the year check is what fails it.
+
 ## NEXT ACTION
 
-Step 2: write `tools/verify_ciphers.py` — per case, parse the legacy cipher (BEFORE column) and the
-cipher `build_cipher` emits from the same meaning (AFTER column), check symbol / legs (month, year,
-day, strike, cp, ratio) / spread type / size / price / side; print PASS/FAIL with parser output.
+Step 3: fix `audio_agent/extract/cipher.py` — month alphabet `jfmayulgeonq`; `;` before every
+strike; year by month-char repetition (refuse year < today.year); `bb`/`ss` price always with a
+decimal point; time spreads as `<exp1>;<k>c / <exp2>;<k>c cts`; refuse `jr`. Update
+`tests/test_extract.py` expectations; run `tests/test_extract.py`; re-run the verifier; log each fix.
