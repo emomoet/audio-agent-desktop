@@ -1,5 +1,6 @@
 """End-to-end: WAV file source -> buffer -> segmenter -> (scripted) ASR -> proposals -> HTTP API."""
 import json
+from datetime import date
 import threading
 import time
 import urllib.error
@@ -11,11 +12,19 @@ import pytest
 from audio_agent.agent import Agent
 from audio_agent.api import ApiServer
 from audio_agent.config import parse
+from audio_agent.extract import cipher as cipher_mod
 from audio_agent.playback import NullPlayer
 from audio_agent.ringbuffer import RATE
 from audio_agent.sources.file import write_wav
 
 from conftest import ScriptedAsr, synth_take
+
+
+@pytest.fixture(autouse=True)
+def fixed_today(monkeypatch):
+    """Cipher years are month-char repeats relative to today (TP parser rule); pin the date so
+    the expected strings below do not flip with the calendar."""
+    monkeypatch.setattr(cipher_mod, "_today", lambda: date(2026, 1, 2))
 
 ORIGIN = "https://tp.percev.com"
 
@@ -77,7 +86,7 @@ def test_pipeline_produces_proposals_and_drops_chatter(running):
     code, _, body = req(api.port, "/proposals")
     assert code == 200
     ciphers = sorted(p["cipher"] for p in body["proposals"])
-    assert ciphers == ["aapl y180;190cs z500 bb2.1", "intc l30;35ps z400 ss1.1"]
+    assert ciphers == ["aapl y;180;190cs z500 bb2.1", "intc l;30;35ps z400 ss1.1"]
     for p in body["proposals"]:
         assert p["my_qty"] is None
 
@@ -170,7 +179,7 @@ def test_sse_hello_then_events(tmp_path):
     agent.stop()
     kinds = [e for e, _ in events]
     assert kinds[0] == "hello" and "segment" in kinds and "transcript" in kinds and kinds[-1] == "proposal.new"
-    assert events[-1][1]["cipher"] == "aapl y180c z100 bb1.05"
+    assert events[-1][1]["cipher"] == "aapl y;180c z100 bb1.05"
 
 
 def test_token_required_when_configured(tmp_path):

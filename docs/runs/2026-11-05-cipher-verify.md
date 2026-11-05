@@ -150,8 +150,37 @@ Verifier at this state (run from inside trading-system-v2, today=2026-11-05): **
 the parser only knows repeat-count = years ahead. The verifier derives its expected year by the
 same rule, so it cannot catch that rule being wrong; it does catch the emitter disagreeing with it.
 
+## Step 4 — ASSUMPTIONS.md (done) and the one full-suite run
+
+- Appended **A20 MEASURED**, superseding A10 and A13, citing `order_parser.py:812`,
+  `keystroke_endpoint.py:2604`, `order_constants.py:9-22`, `option_info_parser.py:89-109,169-181`,
+  `order_parser.py:293-366`, `order_types.py:54`, `expiration_resolver.py:29`.
+- Full suite (`python -m pytest -q`, repo root): first run **2 failed, 74 passed** —
+  `tests/test_agent_api.py:80` and `:173` are STATIC READERS of the cipher string through the whole
+  pipeline (the CLAUDE.md "grep the test tree for the moved strings" species; a targeted run could
+  not see them). Fixed by pinning `cipher._today` to 2026-01-02 in that file too and updating the two
+  strings to `y;180;190cs` / `l;30;35ps` / `y;180c`. Final: **76 passed** (69 at baseline, +8 new
+  emitter tests, −1 replaced: `test_cipher_refuses_unencodable_year` is now
+  `test_cipher_year_is_the_month_char_repeated` + `test_cipher_refuses_a_past_year`).
+- Verifier at the final tree: **AFTER 11/11 PASS** (BEFORE 0/11).
+- trading-system-v2-SANDBOX: `git status` clean — nothing changed there.
+
+## DECISIONS (GAP-FILLED unless marked)
+- **No-year month = next occurrence, this month = this year** — prompt said nothing about year
+  encoding; alternative: refuse any month with no spoken year; reversal CHEAP. Carried into the
+  verifier's expectation too (so it cannot catch this rule being wrong).
+- **Side without price → trailing standalone `b`/`s`** (not the `by;…` prefix the task's example
+  used) — prompt gave the example cipher as a *meaning*; alternative: prefix form, which stamps
+  only the first leg of a two-group time spread; reversal CHEAP.
+- **Time spread spelling = the parser test corpus's `y;140c / u;140c cts`** over the equally valid
+  single-term `y;u;140cts`; reversal CHEAP.
+- **`jr` and non-time-spread multi-expiry refused** (`None, [reason]`) per the prompt's "if the
+  parser cannot express a case"; alternative: emit `y;590jr` and let the parser error; reversal CHEAP.
+- **`pip install -e` packaging defect (two top-level packages) NOT fixed** — out of scope; REFUSED
+  to widen; worked around by installing deps directly. Noted here only.
+- Pushed to `main` as the prompt instructs, and mirrored to `claude/funny-wright-603voc`.
+
 ## NEXT ACTION
 
-Step 4: append an entry to `ASSUMPTIONS.md` superseding A10 (and A13) as MEASURED, citing
-`backend/order_parser.py:812`, `option_info_parser.py:89-109,169-181`, `order_constants.py:9-22`,
-`order_parser.py:293-366`. Then one full `python -m pytest -q` run, final commit, report.
+None — task complete. If resumed: re-run `tools/verify_ciphers.py` from inside trading-system-v2
+after any parser change on their side; the eleven cases and the structural expectations live in it.

@@ -73,3 +73,37 @@ Tags: **MEASURED** (verified in this build), **ASSUMED** (needs a ruling or a de
 - faster-whisper accuracy on floor speech (no speech audio or model download available here).
 - PyInstaller build and install scripts (Windows-only).
 - RTP source against a real SIPREC fork.
+
+## 2026-11-05 — cipher syntax verified against the live parser
+
+- A20 **MEASURED** — supersedes **A10** and **A13**. The draft cipher is now the syntax TP's KOE
+  parser reads TODAY, verified by driving every shape through `parse_order`
+  (`trading-system-v2/backend/order_parser.py:812`, the function `keystroke_endpoint._order_from_msg`
+  at `keystroke_endpoint.py:2604` calls for a KOE keystroke) with `tools/verify_ciphers.py`:
+  11/11 cases parse to the intended legs, size, price and side with no errors and `is_priceable`
+  (they were 0/11 under A10's syntax). What changed, with the parser site for each:
+  - Month chars are `jfmayulgeonq` (`backend/order_constants.py:9-22`): `q` = December, `o` =
+    October, `f` = February. A10's `q`=Feb, `w`=Oct, `p`=Dec no longer parse ("Unrecognised term").
+  - A strike is ALWAYS preceded by `;`; digits straight after the month char are the expiration
+    DAY (`backend/option_info_parser.py:93-109`, `:169-181`). `y180;190cs` was "May the 180th,
+    one strike"; the cipher is `y;180;190cs`.
+  - Year = the month char repeated once per year after this calendar year
+    (`backend/option_info_parser.py:89-90`: `current_year + len(month_str) - 1`; `CURRENT_YEAR`
+    is `date.today().year`, `order_parser.py:37`). `yy` = May next year, `jjj` = Jan two years on.
+    There is no "nearest occurrence" rule in the parser, so A13's "a later year can't be written"
+    was wrong: the emitter writes it; only a year before this one is refused (`expiry_year_in_past`).
+    A month spoken with no year is taken as its next occurrence (this month = this year) — that
+    half is the agent's own convention, not the parser's.
+  - `bb`/`ss`/`r` prices always carry a decimal point (`backend/order_parser.py:293-366`: one
+    number without a `.` is a SIZE — `bb2` read as size 2 and dropped the price).
+  - Time spreads are one `/`-separated group per expiry with the code last
+    (`nvda y;140c / u;140c cts`, the spelling in `backend/test_parser.py`); A10's `y/u140cts` gave
+    an empty first group and the parser still reported ONE leg as priceable.
+  - A side with no price is a trailing standalone `b`/`s` (sets `Order.bs_global`; the leading
+    prefix form stamps only the first leg of a two-group time spread). Convention unchanged:
+    b = broker buys = trader sells (`ANCHOR-DOMAIN-BS`, `backend/order_types.py:54`).
+  - No cipher is emitted for `jr` (`SPREAD_EXPECTATIONS["jr"]` is TBD on every axis and
+    `y;590jr` errors "Too few C/Ps") or for two expiries on anything but `cts`/`pts`.
+  Still ASSUMED: the chain lookup (`backend/expiration_resolver.py:29`) finds the monthly expiry at or
+  before the 3rd Friday; a month spoken in its own month after that Friday resolves to nothing and
+  the trader sees an unresolved expiry rather than a silently different one.
