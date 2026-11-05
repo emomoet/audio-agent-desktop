@@ -101,9 +101,57 @@ which for May/Jun/Jul/Jan has passed — a FAIL on year once the verifier checks
 - Result at `144666e` (emitter unchanged): **BEFORE 0/11, AFTER 0/11.** The cbf case parsed
   cleanly but as May 2026 (single `y` in Nov 2026) — the year check is what fails it.
 
+## Step 3 — emitter fixes (done; `audio_agent/extract/cipher.py` rewritten, `tests/test_extract.py` updated)
+
+Each fix, the parser fact it answers, and the verifier result after it (one verifier run covers all —
+they were built together; the per-fix attribution below is from the mutation run, which killed
+each one separately):
+
+1. **Month alphabet** `MONTH_CHARS = "jfmayulgeonq"` (was `jqmayulgewnp`) — `order_constants.py:9-22`.
+   Fixes `xom p110p` (→ `q;110p`) and `spy w14;592.5c` (→ `o14;592.5c`). Mutation back to the old
+   string: 3 tests fail.
+2. **`;` before every strike, unconditionally** (was: only after a day digit or a leading ratio) —
+   `option_info_parser.py:93-109,169-181`. Fixes cs/ps/st/sr/ratio/side-prefix cases. Mutation
+   (drop the `;`): 16 tests fail.
+3. **Year = month char repeated** once per year past this calendar year; no year spoken ⇒ next
+   occurrence of the month (this month counts as this year); year < today ⇒ `None,
+   ["expiry_year_in_past"]` — `option_info_parser.py:89-90`. A13's refusal of a later year is gone:
+   2028 is `jjj`. Mutation (always one char): 1 test fails.
+4. **Price text always has a decimal point** (`bb2.0`, never `bb2`) — `order_parser.py:293-366`
+   ("no decimal → SIZE"). Fixes `aapl y15;180c z100 bb2` (which had read size=2, price=None).
+   Mutation (strip the point): 2 tests fail.
+5. **Time spreads** emitted as `<exp1>;<k>c / <exp2>;<k>c cts` (one group per expiry, the parser's
+   own test spelling, `backend/test_parser.py` "aapl j;100c / m;120c cts"); `pts` for puts; a
+   second strike makes a diagonal; ≠2 expiries ⇒ `None, ["time_spread_needs_two_expiries"]`.
+   Fixes `nvda y/u140cts` (which had read ONE leg and `priceable=True` — the silent one).
+6. **Side without price** is a trailing standalone `b`/`s` term (sets `order.bs_global` for every
+   shape; the old `b` prefix on the option term stamps only the FIRST leg of a two-group time
+   spread). `bb`/`ss` price tokens unchanged. Mutation (`ss` → `bb`): 3 tests fail.
+7. **Refusals instead of approximations**: `jr` ⇒ `None, ["spread_type_not_in_parser:jr"]`
+   (`SPREAD_EXPECTATIONS["jr"]` is TBD on every axis; `y;590jr` errors "Too few C/Ps"); two
+   expiries on a non-time-spread ⇒ `None, ["multi_expiry_not_encodable"]`.
+
+Tests: `tests/test_extract.py` expected ciphers updated to the verified forms; 8 new tests
+(month alphabet, `;` without a day, year repetition, past-year refusal, decimal price, standalone
+side, time spread, parser-cannot-read refusals); an autouse fixture pins `cipher._today` to
+2026-01-02 so the CASES strings do not flip with the calendar. Result: **34 passed** (was 26 in
+this file). Five in-place mutations of the emitter each turned the file red (counts above); the file
+was restored from a copy, never `git checkout`.
+
+Verifier at this state (run from inside trading-system-v2, today=2026-11-05): **AFTER 11/11 PASS**
+(BEFORE still 0/11). Emitted forms: `aapl yy;180;190cs z500 bb2.1` · `amd uu;150st z200` ·
+`spy yy15;590;595;600cbf z1000 bb1.25` · `intc ll;30;35ps z400 bb1.1` ·
+`nvda yy;140c / uu;140c cts z100 ss3.2` · `aapl yy15;180c z100 bb2.0` · `aapl yy;180;2x190cs z100` ·
+`aapl yy;180c z10 b` · `xom q;110p z300 ss1.4` · `tsla jj;250;300sr z50` · `spy oo14;592.5c`
+(doubled chars because every month but December has passed in November 2026).
+
+⚠️ Shared assumption between emitter and verifier, stated so it can be challenged: "no year spoken
+= next occurrence of the month, this month = this year" is MINE (GAP-FILLED), not the parser's —
+the parser only knows repeat-count = years ahead. The verifier derives its expected year by the
+same rule, so it cannot catch that rule being wrong; it does catch the emitter disagreeing with it.
+
 ## NEXT ACTION
 
-Step 3: fix `audio_agent/extract/cipher.py` — month alphabet `jfmayulgeonq`; `;` before every
-strike; year by month-char repetition (refuse year < today.year); `bb`/`ss` price always with a
-decimal point; time spreads as `<exp1>;<k>c / <exp2>;<k>c cts`; refuse `jr`. Update
-`tests/test_extract.py` expectations; run `tests/test_extract.py`; re-run the verifier; log each fix.
+Step 4: append an entry to `ASSUMPTIONS.md` superseding A10 (and A13) as MEASURED, citing
+`backend/order_parser.py:812`, `option_info_parser.py:89-109,169-181`, `order_constants.py:9-22`,
+`order_parser.py:293-366`. Then one full `python -m pytest -q` run, final commit, report.
